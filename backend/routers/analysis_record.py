@@ -22,25 +22,29 @@ class AnalysisRecordResponse(AnalysisRecordBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    completed_at: datetime = None
+    completed_at: datetime | None = None
+    error_message: str | None = None
 
     class Config:
         orm_mode = True
 
 async def analyze_alert(alert_id: int, db: Session):
     try:
+        db_record = db.query(AnalysisRecord).filter(AnalysisRecord.alert_id == alert_id).first()
+        alert_msg = f"告警描述：{db_record.description}"
+        print(alert_msg)
         # 调用Ollama服务进行分析
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            "http://10.98.65.131:11434/api/generate",
             json={
-                "model": "llama2",
-                "prompt": f"分析告警ID {alert_id} 的可能原因和解决方案"
+                "model": "deepseek-r1:32b",
+                "prompt": f"分析告警 {alert_msg} 的可能原因和解决方案,请从以下几个方面进行分析：\n1. 告警的严重程度和影响范围\n2. 可能的原因分析\n3. 建议的处理方案\n4. 预防措施建议\n请用中文回答，并保持专业和客观。"
             }
         )
         result = response.json()
         
         # 更新分析记录
-        db_record = db.query(AnalysisRecord).filter(AnalysisRecord.alert_id == alert_id).first()
+        
         if db_record:
             db_record.status = "completed"
             db_record.analysis_result = result.get('response', '')
@@ -49,6 +53,7 @@ async def analyze_alert(alert_id: int, db: Session):
             db.refresh(db_record)
     except Exception as e:
         # 更新错误信息
+        print(f"Error during analysis: {str(e)}")
         db_record = db.query(AnalysisRecord).filter(AnalysisRecord.alert_id == alert_id).first()
         if db_record:
             db_record.status = "completed"
