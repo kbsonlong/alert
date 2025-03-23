@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime
 from database import get_db
 from models.analysis_record_model import AnalysisRecord
+from models.alert_record_model import AlertRecord
 from pydantic import BaseModel
 import requests
 
@@ -30,8 +31,8 @@ class AnalysisRecordResponse(AnalysisRecordBase):
 
 async def analyze_alert(alert_id: int, db: Session):
     try:
-        db_record = db.query(AnalysisRecord).filter(AnalysisRecord.alert_id == alert_id).first()
-        alert_msg = f"告警描述：{db_record.description}"
+        alert_record = db.query(AlertRecord).filter(AlertRecord.id == alert_id).first()
+        alert_msg = f"告警描述：{alert_record.description}"
         print(alert_msg)
         # 调用Ollama服务进行分析
         response = requests.post(
@@ -44,7 +45,7 @@ async def analyze_alert(alert_id: int, db: Session):
         result = response.json()
         
         # 更新分析记录
-        
+        db_record = db.query(AnalysisRecord).filter(AnalysisRecord.alert_id == alert_id).first()
         if db_record:
             db_record.status = "completed"
             db_record.analysis_result = result.get('response', '')
